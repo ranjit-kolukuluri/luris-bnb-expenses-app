@@ -4,7 +4,8 @@ Mobile-first expense & income tracker for **16 Weldon St, Jersey City, NJ 07306*
 
 ## Live
 
-- **App:** [https://luris-bnb.vercel.app](https://luris-bnb.vercel.app)
+- **App:** [https://luris-bnb-phi.vercel.app](https://luris-bnb-phi.vercel.app)
+- **Repo:** [ranjit-kolukuluri/luris-bnb-expenses-app](https://github.com/ranjit-kolukuluri/luris-bnb-expenses-app)
 - **Supabase:** project `luris-bnb` (`itxbmhldaxhtjtzvzihf`) in the same org as RUDR-AI
 
 ## Stack
