@@ -26,7 +26,7 @@ import {
 } from "./supabase/data";
 
 const STORAGE_KEY = "luris-bnb-local-v2";
-const SEED_VERSION = 9;
+const SEED_VERSION = 10;
 
 interface LocalState {
   seedVersion: number;

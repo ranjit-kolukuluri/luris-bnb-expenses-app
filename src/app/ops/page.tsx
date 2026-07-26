@@ -118,7 +118,7 @@ export default function OpsPage() {
           >
             <div className="font-semibold">{r.label}</div>
             <div className={selected.key === r.key ? "opacity-80" : "text-[var(--ink-muted)]"}>
-              {r.kind === "projected" ? "Projected" : "Actual"}
+              {r.dataLag ? "Lagging" : r.kind === "projected" ? "Projected" : "Actual"}
             </div>
           </button>
         ))}
@@ -194,7 +194,8 @@ function MonthDetail({ row }: { row: MonthOpsRow }) {
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-[rgba(242,245,251,0.5)]">
-              {row.kind === "projected" ? "Projection" : "Actual"} · ops only
+              {row.kind === "projected" ? "Projection" : "Actual"}
+              {row.dataLag ? " · data lag" : " · ops only"}
             </p>
             <h2 className="display mt-1 text-2xl font-semibold">{row.label}</h2>
           </div>
@@ -226,6 +227,26 @@ function MonthDetail({ row }: { row: MonthOpsRow }) {
           </div>
         </div>
       </div>
+
+      {row.dataLag ? (
+        <div className="border-b border-[var(--line)] bg-[rgba(181,106,47,0.08)] px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--warn)]">
+            Statement lag
+            {row.dataLag.accounts.length
+              ? ` · ${row.dataLag.accounts.join(", ")}`
+              : ""}
+          </p>
+          <ul className="mt-1 space-y-1 text-sm text-[var(--ink-muted)]">
+            {row.dataLag.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+            <li>
+              Live bank rows are included now; when the monthly PDF arrives, mark coverage
+              current and reconcile any duplicates.
+            </li>
+          </ul>
+        </div>
+      ) : null}
 
       <div className="p-4">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">
@@ -269,7 +290,19 @@ function MonthDetail({ row }: { row: MonthOpsRow }) {
                   className="flex items-start justify-between gap-3 border-b border-[var(--line)] py-2.5 last:border-0"
                 >
                   <div className="min-w-0">
-                    <p className="font-medium leading-snug">{line.title}</p>
+                    <p className="font-medium leading-snug">
+                      {line.title}
+                      {line.importSource === "live" ? (
+                        <span className="ml-2 text-[0.7rem] font-semibold uppercase tracking-wide text-[var(--warn)]">
+                          live
+                        </span>
+                      ) : null}
+                      {line.importSource === "manual" ? (
+                        <span className="ml-2 text-[0.7rem] font-semibold uppercase tracking-wide text-[var(--ink-muted)]">
+                          manual
+                        </span>
+                      ) : null}
+                    </p>
                     <p className="mt-0.5 text-[0.7rem] text-[var(--ink-muted)]">
                       {line.unitCode ? `${line.unitCode} · ` : ""}
                       received {line.receivedOn}

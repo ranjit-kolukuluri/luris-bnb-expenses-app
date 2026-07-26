@@ -127,6 +127,7 @@ async function main() {
       expense_subgroup: t.expense_subgroup ?? null,
       is_seeded: true,
       deleted_at: null,
+      import_source: t.import_source ?? "statement",
     }));
     const { error: txErr } = await sb.from("transactions").upsert(slice);
     if (txErr) throw txErr;
@@ -134,6 +135,20 @@ async function main() {
 
   console.log("Done.");
   console.log(`Property id: ${propertyId}`);
+
+  console.log("Upserting statement coverage…");
+  const { STATEMENT_COVERAGE } = await import("../src/lib/seed");
+  const { error: covErr } = await sb.from("statement_coverage").upsert(
+    STATEMENT_COVERAGE.map((c) => ({
+      property_id: propertyId,
+      account: c.account,
+      through_date: c.through,
+      label: c.label,
+    })),
+    { onConflict: "property_id,account" }
+  );
+  if (covErr) console.warn("statement_coverage:", covErr.message);
+
   console.log(
     "Next: open the app, sign in, and claim the property (Settings → Cloud sync)."
   );

@@ -149,9 +149,38 @@ function tx(
     expense_group: partial.expense_group ?? null,
     expense_subgroup: partial.expense_subgroup ?? null,
     applies_on: partial.applies_on ?? null,
+    import_source: partial.import_source ?? "statement",
     ...partial,
   };
 }
+
+/**
+ * Last closed statement per bank account.
+ * Months after `through` may still have live/manual rows — Ops flags that lag.
+ * Update `through` when a new monthly PDF is imported.
+ */
+export const STATEMENT_COVERAGE: import("./types").StatementCoverage[] = [
+  {
+    account: "BlueVine",
+    through: "2026-06-30",
+    label: "BlueVine statement through June 2026",
+  },
+  {
+    account: "BoA",
+    through: "2026-06-30",
+    label: "BoA statement through June 2026",
+  },
+  {
+    account: "Chase",
+    through: "2026-06-30",
+    label: "Chase statement through June 2026",
+  },
+  {
+    account: "Prime",
+    through: "2026-06-30",
+    label: "Prime statement through June 2026",
+  },
+];
 
 /** First day of month for ops attribution */
 function monthStart(yyyyMmDd: string) {
@@ -780,6 +809,39 @@ export const SEED_TRANSACTIONS: Transaction[] = [
     payment_account: "BlueVine",
     vendor: "Apartments.com / Moral",
   }),
+  // July 2L — live BlueVine activity (July statement not issued yet)
+  tx({
+    id: "tx-rent-2l-0703-moral",
+    unit_id: "unit-2l",
+    category_id: "cat-rent",
+    type: "income",
+    cadence: "one_time",
+    title: "2L rent — Apartments.com (Moral)",
+    description:
+      "Live BlueVine activity 07/03 — July statement not issued yet. → July rent.",
+    amount: 750,
+    occurred_on: "2026-07-03",
+    applies_on: "2026-07-01",
+    payment_account: "BlueVine",
+    vendor: "Apartments.com / Moral",
+    import_source: "live",
+  }),
+  tx({
+    id: "tx-rent-2l-0703-adade",
+    unit_id: "unit-2l",
+    category_id: "cat-rent",
+    type: "income",
+    cadence: "one_time",
+    title: "2L rent — Apartments.com (Adade)",
+    description:
+      "Live BlueVine activity 07/03 — July statement not issued yet. → July rent.",
+    amount: 1000,
+    occurred_on: "2026-07-03",
+    applies_on: "2026-07-01",
+    payment_account: "BlueVine",
+    vendor: "Apartments.com / Adade",
+    import_source: "live",
+  }),
 
   // —— Income: 2R Airbnb ——
   // Early-month payout usually covers the prior month’s stays; late-month covers current.
@@ -812,8 +874,38 @@ export const SEED_TRANSACTIONS: Transaction[] = [
     payment_account: "BlueVine",
     vendor: "Airbnb",
   }),
-  // July Airbnb payout — amount TBD once July BlueVine statement is available.
-  // Leaving unset so Ops does not invent a figure; add via Income when known.
+  tx({
+    id: "tx-airbnb-2r-jul-0702",
+    unit_id: "unit-2r",
+    category_id: "cat-rent",
+    type: "income",
+    cadence: "one_time",
+    title: "2R Airbnb payout — Jul (live)",
+    description:
+      "Live BlueVine activity 07/02 INCTPZ2HMV $3,026.40 — July statement not issued yet.",
+    amount: 3026.4,
+    occurred_on: "2026-07-02",
+    applies_on: "2026-07-01",
+    payment_account: "BlueVine",
+    vendor: "Airbnb",
+    import_source: "live",
+  }),
+  tx({
+    id: "tx-airbnb-2r-jul-0714",
+    unit_id: "unit-2r",
+    category_id: "cat-rent",
+    type: "income",
+    cadence: "one_time",
+    title: "2R Airbnb payout — Jul (live)",
+    description:
+      "Live BlueVine activity 07/14 JVKXAQUO26 $190.00 — July statement not issued yet.",
+    amount: 190,
+    occurred_on: "2026-07-14",
+    applies_on: "2026-07-01",
+    payment_account: "BlueVine",
+    vendor: "Airbnb",
+    import_source: "live",
+  }),
 ];
 
 export const PAYMENT_ACCOUNTS = [

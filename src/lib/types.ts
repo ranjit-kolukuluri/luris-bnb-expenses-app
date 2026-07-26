@@ -82,9 +82,23 @@ export interface Transaction {
   payment_account: string | null;
   vendor: string | null;
   is_seeded: boolean;
+  /**
+   * How the row entered the ledger.
+   * - statement: from a closed monthly PDF/CSV
+   * - live: bank activity before the month's statement exists
+   * - manual: typed in by a partner
+   */
+  import_source?: "statement" | "live" | "manual" | null;
   expense_group?: ExpenseGroup | null;
   expense_subgroup?: ExpenseSubgroup | null;
   created_at?: string;
+}
+
+/** Last day covered by an imported monthly statement for a payment account */
+export interface StatementCoverage {
+  account: string;
+  through: string; // YYYY-MM-DD
+  label: string;
 }
 
 export interface DocumentRow {

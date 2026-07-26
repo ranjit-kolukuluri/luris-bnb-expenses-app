@@ -1,4 +1,5 @@
-import type { ExpenseGroup, Transaction, Unit } from "./types";
+import type { ExpenseGroup, StatementCoverage, Transaction, Unit } from "./types";
+import { STATEMENT_COVERAGE } from "./seed";
 
 export type MonthKind = "actual" | "projected";
 
@@ -26,6 +27,16 @@ export interface MonthIncomeLine {
   amount: number;
   receivedOn: string;
   appliesOn: string;
+  importSource?: Transaction["import_source"];
+}
+
+export interface MonthDataLag {
+  /** Accounts whose last statement ends before this month */
+  accounts: string[];
+  /** Human-readable coverage notes */
+  notes: string[];
+  /** True when any income/expense in this month is marked live/manual past statement coverage */
+  hasLiveRows: boolean;
 }
 
 export interface MonthOpsRow {
@@ -40,6 +51,7 @@ export interface MonthOpsRow {
   costs: MonthOpsCosts;
   costsTotal: number;
   net: number;
+  dataLag: MonthDataLag | null;
 }
 
 const money = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -83,6 +95,52 @@ export function inMonth(dateStr: string, year: number, month: number) {
 /** Month this txn counts toward in ops P&L */
 export function opsMonthDate(t: Transaction): string {
   return t.applies_on || t.occurred_on;
+}
+
+/** Last calendar day of year/month (0-11). */
+function monthEndDate(year: number, month: number): string {
+  const last = new Date(year, month + 1, 0).getDate();
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+}
+
+/**
+ * Flag months that extend past imported bank statements.
+ * Live bank rows (or any activity after coverage) → data lag banner on Ops.
+ */
+export function computeDataLag(
+  year: number,
+  month: number,
+  monthTx: Transaction[],
+  coverage: StatementCoverage[] = STATEMENT_COVERAGE
+): MonthDataLag | null {
+  const end = monthEndDate(year, month);
+  const lagged = coverage.filter((c) => c.through < end);
+  const hasLiveRows = monthTx.some(
+    (t) => t.import_source === "live" || t.import_source === "manual"
+  );
+  if (!lagged.length && !hasLiveRows) return null;
+
+  const accountsUsed = new Set(
+    monthTx
+      .map((t) => t.payment_account)
+      .filter((a): a is string => Boolean(a))
+  );
+  const relevant = lagged.filter(
+    (c) => accountsUsed.size === 0 || accountsUsed.has(c.account)
+  );
+  if (!relevant.length && !hasLiveRows) return null;
+
+  const accounts = [...new Set(relevant.map((c) => c.account))];
+  const notes = relevant.map(
+    (c) =>
+      `${c.account}: statement only through ${c.through.slice(0, 7)}; this month may be incomplete until the PDF lands.`
+  );
+  if (hasLiveRows && !notes.length) {
+    notes.push(
+      "Some rows are live bank activity entered before the monthly statement was available."
+    );
+  }
+  return { accounts, notes, hasLiveRows };
 }
 
 function unitCodeFromTx(t: Transaction, units: Unit[]): string | null {
@@ -272,7 +330,16 @@ export function buildMonthlyOps(opts: {
       amount: Number(t.amount),
       receivedOn: t.occurred_on,
       appliesOn: opsMonthDate(t),
+      importSource: t.import_source ?? null,
     }));
+
+    const monthAllTx = transactions.filter(
+      (t) =>
+        (t.type === "income" || t.type === "expense") &&
+        t.cadence !== "recurring" &&
+        inMonth(opsMonthDate(t), y, m)
+    );
+    const dataLag = computeDataLag(y, m, monthAllTx);
 
     const actualUtilities = money(
       transactions
@@ -361,6 +428,7 @@ export function buildMonthlyOps(opts: {
       costs,
       costsTotal,
       net: money(incomeTotal - costsTotal),
+      dataLag,
     });
 
     m += 1;
