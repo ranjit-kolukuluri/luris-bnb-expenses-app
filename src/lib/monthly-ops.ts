@@ -363,15 +363,29 @@ export function buildMonthlyOps(opts: {
     const actualWater = money(
       waterActualTxs.reduce((s, t) => s + Number(t.amount), 0)
     );
-    const actualMgmtOneOff = money(
-      transactions
+    const mgmtTxs = transactions.filter(
+      (t) =>
+        t.type === "expense" &&
+        t.cadence === "one_time" &&
+        inMonth(opsMonthDate(t), y, m) &&
+        (t.expense_group === "property_management" ||
+          /hosting fee|property management/i.test(t.title))
+    );
+    const actualMgmtMonthly = money(
+      mgmtTxs
         .filter(
           (t) =>
-            t.type === "expense" &&
-            t.cadence === "one_time" &&
-            inMonth(opsMonthDate(t), y, m) &&
-            (t.expense_group === "property_management" ||
-              /hosting fee|property management/i.test(t.title))
+            t.expense_subgroup === "monthly_mgmt" ||
+            /property management/i.test(t.title)
+        )
+        .reduce((s, t) => s + Number(t.amount), 0)
+    );
+    const actualMgmtOther = money(
+      mgmtTxs
+        .filter(
+          (t) =>
+            t.expense_subgroup !== "monthly_mgmt" &&
+            !/property management/i.test(t.title)
         )
         .reduce((s, t) => s + Number(t.amount), 0)
     );
@@ -403,7 +417,10 @@ export function buildMonthlyOps(opts: {
       water:
         useActualCosts && hasActualWater ? actualWater : recurring.water,
       management: useActualCosts
-        ? money(recurring.management + actualMgmtOneOff)
+        ? money(
+            (actualMgmtMonthly > 0 ? actualMgmtMonthly : recurring.management) +
+              actualMgmtOther
+          )
         : recurring.management,
       otherOps: useActualCosts ? otherOps : 0,
     };
