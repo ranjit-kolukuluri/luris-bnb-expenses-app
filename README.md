@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Luris BnB
 
-## Getting Started
+Mobile-first expense & income tracker for **16 Weldon St, Jersey City, NJ 07306** (closed Feb 9, 2026).
 
-First, run the development server:
+## Live
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **App:** [https://luris-bnb.vercel.app](https://luris-bnb.vercel.app)
+- **Supabase:** project `luris-bnb` (`itxbmhldaxhtjtzvzihf`) in the same org as RUDR-AI
+
+## Stack
+
+- **Next.js 16** + TypeScript + Tailwind
+- **PWA** (`manifest.webmanifest`)
+- **Supabase** — relational ledger + `entity_history` audit trail + partner auth
+- **Vercel** — production hosting
+
+## Data model (relationships)
+
+```
+auth.users ──< profiles
+     │
+     └──< property_members >── properties
+                                  ├──< units
+                                  ├──< categories
+                                  ├──< transactions >── documents
+                                  └──< entity_history (immutable change log)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Every insert/update/delete on property, unit, category, transaction, document, and membership is logged in `entity_history`. Transactions use soft-delete (`deleted_at`) so history stays intact.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Local
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+npm run dev
+```
 
-## Learn More
+Copy `.env.example` → `.env.local` (already set if you linked the project).
 
-To learn more about Next.js, take a look at the following resources:
+## Seed / re-seed cloud
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run seed:supabase
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Uses the service role key from `.env.local` (never commit it).
 
-## Deploy on Vercel
+## Partner sync
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Open Settings → enter email → magic link
+2. First partner clicks **Claim property & load shared ledger**
+3. Partner signs up with their email, then owner invites them in Settings
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploy
+
+```bash
+npx vercel --prod
+```
