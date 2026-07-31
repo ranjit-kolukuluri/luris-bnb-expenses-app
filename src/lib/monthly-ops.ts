@@ -1,5 +1,9 @@
 import type { ExpenseGroup, StatementCoverage, Transaction, Unit } from "./types";
-import { STATEMENT_COVERAGE } from "./seed";
+import { 
+  STATEMENT_COVERAGE, 
+  MONTHLY_MANAGEMENT_COSTS, 
+  DEFAULT_MONTHLY_MANAGEMENT 
+} from "./seed";
 
 export type MonthKind = "actual" | "projected";
 
@@ -148,24 +152,52 @@ function unitCodeFromTx(t: Transaction, units: Unit[]): string | null {
     const u = units.find((x) => x.id === t.unit_id);
     if (u) return u.code;
   }
+  // Explicit unit code in title (highest priority after unit_id)
   const hit = /\b(1L|1R|2L|2R)\b/i.exec(t.title);
   if (hit) return hit[1].toUpperCase();
-  const blob = `${t.title} ${t.vendor ?? ""}`;
-  if (/ariel|arial/i.test(blob)) return "1L";
-  if (/airbnb/i.test(blob)) return "2R";
-  if (/apartments\.com|moral|adade/i.test(blob)) return "2L";
+  
+  // Vendor-specific patterns for income matching
+  const blob = `${t.title} ${t.vendor ?? ""}`.toLowerCase();
+  
+  // 1L: Ariel rent payments
+  if (/ariel|arial/i.test(blob) && /rent|payment|zelle/i.test(t.title)) return "1L";
+  
+  // 2R: Airbnb income
+  if (/airbnb/i.test(blob) && t.type === "income") return "2R";
+  
+  // 2L: Apartments.com tenants (Moral and Adade)
+  if (/apartments\.com|apts\.com/i.test(blob) && t.type === "income") return "2L";
+  if ((/moral|adade/i.test(blob)) && t.type === "income" && !blob.includes("refund")) return "2L";
+  
   return null;
 }
 
 function matchesUnit(t: Transaction, unit: Unit): boolean {
+  // Direct match via unit_id (most reliable)
   if (t.unit_id && t.unit_id === unit.id) return true;
-  // Fallback: title contains unit code (helps older/local rows missing unit_id)
+  
+  // Explicit code in title
   if (new RegExp(`\\b${unit.code}\\b`, "i").test(t.title)) return true;
-  // Vendor / title heuristics when unit was left blank on a manual entry
-  const blob = `${t.title} ${t.vendor ?? ""}`;
-  if (unit.code === "1L" && /ariel|arial/i.test(blob)) return true;
-  if (unit.code === "2R" && /airbnb/i.test(blob)) return true;
-  if (unit.code === "2L" && /apartments\.com|moral|adade/i.test(blob)) return true;
+  
+  // Vendor-based heuristics with stricter type checking
+  const blob = `${t.title} ${t.vendor ?? ""}`.toLowerCase();
+  
+  if (unit.code === "1L") {
+    // Ariel is 1L tenant
+    if (/ariel|arial/i.test(blob) && /rent|payment|zelle/i.test(t.title)) return true;
+  }
+  
+  if (unit.code === "2R") {
+    // Airbnb income goes to 2R
+    if (/airbnb/i.test(blob) && t.type === "income") return true;
+  }
+  
+  if (unit.code === "2L") {
+    // Apartments.com with Moral or Adade tenants
+    if (/apartments\.com|apts\.com/i.test(blob) && t.type === "income") return true;
+    if ((/moral|adade/i.test(blob)) && t.type === "income" && !blob.includes("refund")) return true;
+  }
+  
   return false;
 }
 
@@ -390,6 +422,10 @@ export function buildMonthlyOps(opts: {
         .reduce((s, t) => s + Number(t.amount), 0)
     );
 
+    // Get expected management cost from monthly table
+    const monthKeyStr = `${y}-${String(m + 1).padStart(2, "0")}`;
+    const expectedMgmt = MONTHLY_MANAGEMENT_COSTS[monthKeyStr] ?? DEFAULT_MONTHLY_MANAGEMENT;
+
     const otherOps = money(
       transactions
         .filter(
@@ -418,10 +454,10 @@ export function buildMonthlyOps(opts: {
         useActualCosts && hasActualWater ? actualWater : recurring.water,
       management: useActualCosts
         ? money(
-            (actualMgmtMonthly > 0 ? actualMgmtMonthly : recurring.management) +
+            (actualMgmtMonthly > 0 ? actualMgmtMonthly : expectedMgmt) +
               actualMgmtOther
           )
-        : recurring.management,
+        : expectedMgmt,
       otherOps: useActualCosts ? otherOps : 0,
     };
 

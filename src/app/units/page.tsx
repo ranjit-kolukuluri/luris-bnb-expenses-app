@@ -5,15 +5,46 @@ import { RenoBreakdownPanel } from "@/components/reno-breakdown-panel";
 import { useData } from "@/lib/data-context";
 import { formatCurrency } from "@/lib/calculations";
 import { RENO_TOTALS } from "@/lib/seed";
+import type { Transaction, Unit } from "@/lib/types";
 
 export default function UnitsPage() {
   const { units, transactions, updateUnit } = useData();
 
   const rows = useMemo(() => {
+    // Helper function to match transactions to units (same logic as monthly-ops)
+    const matchesUnit = (t: Transaction, unit: Unit): boolean => {
+      // Direct match via unit_id (most reliable)
+      if (t.unit_id && t.unit_id === unit.id) return true;
+      
+      // Explicit code in title
+      if (new RegExp(`\\b${unit.code}\\b`, "i").test(t.title)) return true;
+      
+      // Vendor-based heuristics with stricter type checking
+      const blob = `${t.title} ${t.vendor ?? ""}`.toLowerCase();
+      
+      if (unit.code === "1L") {
+        // Ariel is 1L tenant
+        if (/ariel|arial/i.test(blob) && /rent|payment|zelle/i.test(t.title)) return true;
+      }
+      
+      if (unit.code === "2R") {
+        // Airbnb income goes to 2R
+        if (/airbnb/i.test(blob) && t.type === "income") return true;
+      }
+      
+      if (unit.code === "2L") {
+        // Apartments.com with Moral or Adade tenants
+        if (/apartments\.com|apts\.com/i.test(blob) && t.type === "income") return true;
+        if ((/moral|adade/i.test(blob)) && t.type === "income" && !blob.includes("refund")) return true;
+      }
+      
+      return false;
+    };
+
     return units.map((unit) => {
-      const related = transactions.filter((t) => t.unit_id === unit.id);
+      const related = transactions.filter((t) => matchesUnit(t, unit));
       const reno = related
-        .filter((t) => t.type === "expense" && /reno|materials|contractor labor/i.test(t.title))
+        .filter((t) => t.type === "expense" && /reno|materials|contractor|labor/i.test(t.title))
         .reduce((s, t) => s + Number(t.amount), 0);
       const income = related
         .filter((t) => t.type === "income")
