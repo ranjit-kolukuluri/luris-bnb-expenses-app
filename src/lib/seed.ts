@@ -58,6 +58,29 @@ export const CONTRACTOR_BY_UNIT = {
 export const INTERIOR_DESIGN_1R_LULU = 1000;
 export const WINDOWS_2R_ISRAEL = 160;
 
+/**
+ * Property management costs by month (YYYY-MM format)
+ * Expected monthly management fee — used when no actual transaction exists for the month.
+ * This replaces the single recurring amount fallback with month-specific data.
+ */
+export const MONTHLY_MANAGEMENT_COSTS: Record<string, number> = {
+  "2026-02": 0, // Property purchased Feb 9, no management yet
+  "2026-03": 0, // First month, no management
+  "2026-04": 0, // No management recorded
+  "2026-05": 702.5, // Expected monthly management starts
+  "2026-06": 702.5, // Actual Zelle payment recorded
+  "2026-07": 702.5, // Expected (continue same rate)
+  "2026-08": 702.5, // Projected
+  "2026-09": 702.5, // Projected
+  "2026-10": 702.5, // Projected
+  "2026-11": 702.5, // Projected
+  "2026-12": 702.5, // Projected
+  "2027-01": 702.5, // Projected
+};
+
+/** Default monthly management cost when month not in table */
+export const DEFAULT_MONTHLY_MANAGEMENT = 702.5;
+
 export const SEED_PROPERTY: Property = {
   id: "local-property-luris",
   name: "Luris BnB",
