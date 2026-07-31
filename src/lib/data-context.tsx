@@ -47,9 +47,9 @@ interface DataContextValue {
   transactions: Transaction[];
   partnerName: string;
   setPartnerName: (name: string) => void;
-  addTransaction: (tx: Omit<Transaction, "id" | "property_id" | "is_seeded">) => void;
-  updateTransaction: (id: string, patch: Partial<Transaction>) => void;
-  deleteTransaction: (id: string) => void;
+  addTransaction: (tx: Omit<Transaction, "id" | "property_id" | "is_seeded">) => Promise<void>;
+  updateTransaction: (id: string, patch: Partial<Transaction>) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
   updateUnit: (id: string, patch: Partial<Unit>) => void;
   metrics: ReturnType<typeof computeMetrics>;
   selectedMonth: { year: number; month: number };
@@ -183,6 +183,68 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, [applyCloudBundle]);
 
+  // Real-time subscription for transactions when in cloud mode
+  useEffect(() => {
+    if (!ready || mode !== "cloud" || !user) return;
+
+    const sb = createClient();
+    if (!sb) return;
+
+    const channel = sb
+      .channel("transactions-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "transactions",
+          filter: `property_id=eq.${state.property.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            const newTx = {
+              ...payload.new,
+              is_seeded: Boolean(payload.new.is_seeded),
+            } as Transaction;
+            
+            // Only add if not already in state (avoid duplicates from optimistic updates)
+            setState((s) => {
+              const exists = s.transactions.some((t) => t.id === newTx.id);
+              if (exists) return s;
+              return { ...s, transactions: [newTx, ...s.transactions] };
+            });
+          } else if (payload.eventType === "UPDATE") {
+            const updatedTx = {
+              ...payload.new,
+              is_seeded: Boolean(payload.new.is_seeded),
+            } as Transaction;
+            
+            // Check if transaction was soft-deleted
+            const wasDeleted = Boolean((payload.new as any).deleted_at);
+            
+            setState((s) => ({
+              ...s,
+              transactions: wasDeleted
+                ? s.transactions.filter((t) => t.id !== updatedTx.id)
+                : s.transactions.map((t) =>
+                    t.id === updatedTx.id ? updatedTx : t
+                  ),
+            }));
+          } else if (payload.eventType === "DELETE") {
+            setState((s) => ({
+              ...s,
+              transactions: s.transactions.filter((t) => t.id !== payload.old.id),
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void channel.unsubscribe();
+    };
+  }, [ready, mode, user, state.property.id]);
+
   useEffect(() => {
     if (!ready || mode === "cloud") return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -235,7 +297,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addTransaction = useCallback(
-    (tx: Omit<Transaction, "id" | "property_id" | "is_seeded">) => {
+    async (tx: Omit<Transaction, "id" | "property_id" | "is_seeded">) => {
       const id =
         mode === "cloud" ? crypto.randomUUID() : `tx-${crypto.randomUUID()}`;
       const row: Transaction = {
@@ -244,11 +306,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
         property_id: state.property.id,
         is_seeded: false,
       };
+      
+      // Optimistic update - add to local state immediately
       setState((s) => ({ ...s, transactions: [row, ...s.transactions] }));
 
       if (mode === "cloud") {
         const sb = createClient();
-        void sb?.from("transactions").insert({
+        if (!sb) {
+          throw new Error("Supabase client not available");
+        }
+        
+        const { error } = await sb.from("transactions").insert({
           id: row.id,
           property_id: row.property_id,
           unit_id: row.unit_id,
@@ -267,45 +335,94 @@ export function DataProvider({ children }: { children: ReactNode }) {
           is_seeded: false,
           created_by: user?.id ?? null,
         });
+        
+        if (error) {
+          // Rollback on error
+          setState((s) => ({
+            ...s,
+            transactions: s.transactions.filter((t) => t.id !== row.id),
+          }));
+          throw new Error(`Failed to save: ${error.message}`);
+        }
       }
     },
     [mode, state.property.id, user?.id]
   );
 
   const updateTransaction = useCallback(
-    (id: string, patch: Partial<Transaction>) => {
+    async (id: string, patch: Partial<Transaction>) => {
+      const oldState = state.transactions.find((t) => t.id === id);
+      
+      // Optimistic update
       setState((s) => ({
         ...s,
         transactions: s.transactions.map((t) =>
           t.id === id ? { ...t, ...patch } : t
         ),
       }));
+      
       if (mode === "cloud") {
         const sb = createClient();
-        void sb?.from("transactions").update({
+        if (!sb) {
+          throw new Error("Supabase client not available");
+        }
+        
+        const { error } = await sb.from("transactions").update({
           ...patch,
           updated_by: user?.id ?? null,
         }).eq("id", id);
+        
+        if (error) {
+          // Rollback on error
+          if (oldState) {
+            setState((s) => ({
+              ...s,
+              transactions: s.transactions.map((t) =>
+                t.id === id ? oldState : t
+              ),
+            }));
+          }
+          throw new Error(`Failed to update: ${error.message}`);
+        }
       }
     },
-    [mode, user?.id]
+    [mode, user?.id, state.transactions]
   );
 
   const deleteTransaction = useCallback(
-    (id: string) => {
+    async (id: string) => {
+      const oldTx = state.transactions.find((t) => t.id === id);
+      
+      // Optimistic update
       setState((s) => ({
         ...s,
         transactions: s.transactions.filter((t) => t.id !== id),
       }));
+      
       if (mode === "cloud") {
         const sb = createClient();
-        void sb
-          ?.from("transactions")
+        if (!sb) {
+          throw new Error("Supabase client not available");
+        }
+        
+        const { error } = await sb
+          .from("transactions")
           .update({ deleted_at: new Date().toISOString(), updated_by: user?.id ?? null })
           .eq("id", id);
+        
+        if (error) {
+          // Rollback on error
+          if (oldTx) {
+            setState((s) => ({
+              ...s,
+              transactions: [oldTx, ...s.transactions],
+            }));
+          }
+          throw new Error(`Failed to delete: ${error.message}`);
+        }
       }
     },
-    [mode, user?.id]
+    [mode, user?.id, state.transactions]
   );
 
   const setPartnerName = useCallback((name: string) => {
