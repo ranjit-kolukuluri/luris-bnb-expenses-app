@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PAYMENT_ACCOUNTS } from "@/lib/seed";
-import type { Cadence, Category, Transaction, TransactionType, Unit } from "@/lib/types";
+import { PAYMENT_ACCOUNTS, EXPENSE_GROUP_LABELS, EXPENSE_SUBGROUP_LABELS } from "@/lib/seed";
+import type { Cadence, Category, ExpenseGroup, ExpenseSubgroup, Transaction, TransactionType, Unit } from "@/lib/types";
 
 const empty = {
   title: "",
@@ -16,6 +16,8 @@ const empty = {
   unit_id: "",
   payment_account: "",
   vendor: "",
+  expense_group: "",
+  expense_subgroup: "",
 };
 
 function monthStart(date: string) {
@@ -58,6 +60,8 @@ export function TransactionFormModal({
         unit_id: initial.unit_id ?? "",
         payment_account: initial.payment_account ?? "",
         vendor: initial.vendor ?? "",
+        expense_group: initial.expense_group ?? "",
+        expense_subgroup: initial.expense_subgroup ?? "",
       });
     } else {
       const type = defaultType ?? "expense";
@@ -98,6 +102,8 @@ export function TransactionFormModal({
         unit_id: form.unit_id || null,
         payment_account: form.payment_account || null,
         vendor: form.vendor.trim() || null,
+        expense_group: form.expense_group ? (form.expense_group as ExpenseGroup) : null,
+        expense_subgroup: form.expense_subgroup ? (form.expense_subgroup as ExpenseSubgroup) : null,
       });
       onClose();
     } catch (err) {
@@ -274,6 +280,45 @@ export function TransactionFormModal({
               placeholder="Optional"
             />
           </div>
+
+          {form.type === "expense" && (
+            <>
+              <div className="field">
+                <label>Expense Group (capital vs ops)</label>
+                <select
+                  value={form.expense_group}
+                  onChange={(e) => setForm((f) => ({ ...f, expense_group: e.target.value, expense_subgroup: "" }))}
+                >
+                  <option value="">None (operating expense)</option>
+                  {Object.entries(EXPENSE_GROUP_LABELS).map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[0.7rem] text-[var(--ink-muted)]">
+                  Contractor fees, materials, interior design = renovation capital
+                </p>
+              </div>
+
+              {form.expense_group && (
+                <div className="field">
+                  <label>Subgroup (optional)</label>
+                  <select
+                    value={form.expense_subgroup}
+                    onChange={(e) => setForm((f) => ({ ...f, expense_subgroup: e.target.value }))}
+                  >
+                    <option value="">None</option>
+                    {Object.entries(EXPENSE_SUBGROUP_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
 
           <div className="field">
             <label>Notes</label>
