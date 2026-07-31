@@ -106,13 +106,18 @@ export default function IncomePage() {
         categories={categories}
         units={units}
         defaultType="income"
-        onSave={(data) => {
-          if (data.id) {
-            const { id, ...rest } = data;
-            updateTransaction(id, rest);
-          } else {
-            const { id: _id, ...rest } = data;
-            addTransaction(rest);
+        onSave={async (data) => {
+          try {
+            if (data.id) {
+              const { id, ...rest } = data;
+              await updateTransaction(id, rest);
+            } else {
+              const { id: _id, ...rest } = data;
+              await addTransaction(rest);
+            }
+          } catch (err) {
+            alert(err instanceof Error ? err.message : "Failed to save income");
+            return;
           }
         }}
         onDelete={deleteTransaction}

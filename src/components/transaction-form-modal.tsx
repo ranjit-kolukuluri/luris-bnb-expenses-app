@@ -34,8 +34,8 @@ export function TransactionFormModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onSave: (data: Omit<Transaction, "id" | "property_id" | "is_seeded"> & { id?: string }) => void;
-  onDelete?: (id: string) => void;
+  onSave: (data: Omit<Transaction, "id" | "property_id" | "is_seeded"> & { id?: string }) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
   initial?: Transaction | null;
   categories: Category[];
   units: Unit[];
@@ -77,28 +77,33 @@ export function TransactionFormModal({
 
   const filteredCats = categories.filter((c) => c.kind === form.type);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     const amount = Number(form.amount);
     if (!form.title.trim() || Number.isNaN(amount)) return;
-    onSave({
-      id: initial?.id,
-      title: form.title.trim(),
-      description: form.description.trim() || null,
-      amount,
-      occurred_on: form.occurred_on,
-      applies_on:
-        form.type === "income"
-          ? form.applies_on || monthStart(form.occurred_on) || null
-          : form.applies_on || null,
-      type: form.type,
-      cadence: form.cadence,
-      category_id: form.category_id || null,
-      unit_id: form.unit_id || null,
-      payment_account: form.payment_account || null,
-      vendor: form.vendor.trim() || null,
-    });
-    onClose();
+    try {
+      await onSave({
+        id: initial?.id,
+        title: form.title.trim(),
+        description: form.description.trim() || null,
+        amount,
+        occurred_on: form.occurred_on,
+        applies_on:
+          form.type === "income"
+            ? form.applies_on || monthStart(form.occurred_on) || null
+            : form.applies_on || null,
+        type: form.type,
+        cadence: form.cadence,
+        category_id: form.category_id || null,
+        unit_id: form.unit_id || null,
+        payment_account: form.payment_account || null,
+        vendor: form.vendor.trim() || null,
+      });
+      onClose();
+    } catch (err) {
+      // Error is already handled in parent component
+      console.error("Error saving transaction:", err);
+    }
   }
 
   return (
@@ -288,9 +293,13 @@ export function TransactionFormModal({
             <button
               type="button"
               className="btn btn-ghost"
-              onClick={() => {
-                onDelete(initial.id);
-                onClose();
+              onClick={async () => {
+                try {
+                  await onDelete(initial.id);
+                  onClose();
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : "Failed to delete transaction");
+                }
               }}
             >
               Delete
