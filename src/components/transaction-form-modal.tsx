@@ -102,8 +102,8 @@ export function TransactionFormModal({
         unit_id: form.unit_id || null,
         payment_account: form.payment_account || null,
         vendor: form.vendor.trim() || null,
-        expense_group: form.expense_group ? (form.expense_group as ExpenseGroup) : null,
-        expense_subgroup: form.expense_subgroup ? (form.expense_subgroup as ExpenseSubgroup) : null,
+        expense_group: (form.expense_group && form.expense_group !== "") ? (form.expense_group as ExpenseGroup) : null,
+        expense_subgroup: (form.expense_subgroup && form.expense_subgroup !== "") ? (form.expense_subgroup as ExpenseSubgroup) : null,
       });
       onClose();
     } catch (err) {
