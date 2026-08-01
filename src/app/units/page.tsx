@@ -43,8 +43,13 @@ export default function UnitsPage() {
 
     return units.map((unit) => {
       const related = transactions.filter((t) => matchesUnit(t, unit));
+      // Use expense_group instead of title keywords for accurate capital expense tracking
       const reno = related
-        .filter((t) => t.type === "expense" && /reno|materials|contractor|labor/i.test(t.title))
+        .filter((t) => 
+          t.type === "expense" && 
+          t.expense_group && 
+          ["contractor_fees", "materials", "interior_design"].includes(t.expense_group)
+        )
         .reduce((s, t) => s + Number(t.amount), 0);
       const income = related
         .filter((t) => t.type === "income")
