@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { MetricTile } from "@/components/metric-tile";
 import { RenoBreakdownPanel } from "@/components/reno-breakdown-panel";
+import { BreakevenBreakdown } from "@/components/breakeven-breakdown";
 import { useData } from "@/lib/data-context";
 import { formatCurrency } from "@/lib/calculations";
 import { buildMonthlyOps } from "@/lib/monthly-ops";
@@ -178,6 +179,11 @@ export default function DashboardPage() {
           <Row label="Renovation" value={metrics.renovationSpend} />
         </div>
       </section>
+
+      <BreakevenBreakdown
+        transactions={transactions}
+        mortgageFallback={property.monthly_mortgage_total}
+      />
 
       <RenoBreakdownPanel transactions={transactions} />
     </main>
