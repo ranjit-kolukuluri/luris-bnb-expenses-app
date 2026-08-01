@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PAYMENT_ACCOUNTS, EXPENSE_GROUP_LABELS, EXPENSE_SUBGROUP_LABELS } from "@/lib/seed";
 import type { Cadence, Category, ExpenseGroup, ExpenseSubgroup, Transaction, TransactionType, Unit } from "@/lib/types";
+import { classifyExpense, getSuggestionMessage } from "@/lib/expense-classifier";
 
 const empty = {
   title: "",
@@ -44,6 +45,30 @@ export function TransactionFormModal({
   defaultType?: TransactionType;
 }) {
   const [form, setForm] = useState(empty);
+  const [suggestion, setSuggestion] = useState<ReturnType<typeof classifyExpense> | null>(null);
+
+  // Smart classification: analyze form data and suggest expense group
+  useEffect(() => {
+    if (form.type !== "expense" || initial) return; // Only for new expenses
+    
+    const result = classifyExpense({
+      title: form.title,
+      vendor: form.vendor,
+      amount: parseFloat(form.amount) || undefined,
+      description: form.description,
+    });
+
+    setSuggestion(result.expenseGroup ? result : null);
+
+    // Auto-apply if high confidence and no group selected yet
+    if (result.confidence === "high" && !form.expense_group && result.expenseGroup) {
+      setForm((f) => ({
+        ...f,
+        expense_group: result.expenseGroup || "",
+        expense_subgroup: result.expenseSubgroup || "",
+      }));
+    }
+  }, [form.title, form.vendor, form.amount, form.description, form.type, initial]);
 
   useEffect(() => {
     if (!open) return;
@@ -284,7 +309,14 @@ export function TransactionFormModal({
           {form.type === "expense" && (
             <>
               <div className="field">
-                <label>Expense Group (capital vs ops)</label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label>Expense Group (capital vs ops)</label>
+                  {suggestion && (
+                    <span className="text-[0.7rem] text-[var(--accent)] font-medium">
+                      {getSuggestionMessage(suggestion)}
+                    </span>
+                  )}
+                </div>
                 <select
                   value={form.expense_group}
                   onChange={(e) => setForm((f) => ({ ...f, expense_group: e.target.value, expense_subgroup: "" }))}
@@ -297,7 +329,9 @@ export function TransactionFormModal({
                   ))}
                 </select>
                 <p className="text-[0.7rem] text-[var(--ink-muted)]">
-                  Contractor fees, materials, interior design = renovation capital
+                  {suggestion && suggestion.confidence !== "high" 
+                    ? `💡 ${suggestion.reason}` 
+                    : "Contractor fees, materials, interior design = renovation capital"}
                 </p>
               </div>
 
